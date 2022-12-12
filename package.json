@@ -1,0 +1,26 @@
+{
+  "name": "fixed-block-store",
+  "version": "0.0.0",
+  "description": "Fast block store to access/update 4kb disk pages",
+  "main": "index.js",
+  "dependencies": {
+    "b4a": "^1.6.1",
+    "ready-resource": "^1.0.0"
+  },
+  "devDependencies": {
+    "standard": "^17.0.0"
+  },
+  "scripts": {
+    "test": "standard"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mafintosh/fixed-block-store.git"
+  },
+  "author": "Mathias Buus (@mafintosh)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mafintosh/fixed-block-store/issues"
+  },
+  "homepage": "https://github.com/mafintosh/fixed-block-store"
+}
