@@ -7,6 +7,7 @@ class FixedBlock {
     this.store = store
     this.index = index
 
+    this.userData = null
     this.buffer = null
     this.loading = null
     this.refs = 1
