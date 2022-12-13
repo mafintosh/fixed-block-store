@@ -2,6 +2,8 @@ const fs = require('fs')
 const b4a = require('b4a')
 const ReadyResource = require('ready-resource')
 
+const MAX_BATCH_SIZE = 131072
+
 class FixedBlock {
   constructor (store, index) {
     this.store = store
@@ -46,7 +48,7 @@ class FixedBlock {
 }
 
 module.exports = class FixedBlockStore extends ReadyResource {
-  constructor (filename, { maxCache = 128, readBatch = 4 } = {}) {
+  constructor (filename, { maxCache = 128, readBatch = 1 } = {}) {
     super()
 
     this.filename = filename
@@ -72,8 +74,7 @@ module.exports = class FixedBlockStore extends ReadyResource {
       return
     }
 
-    const active = this.blocks.size - this.idle.length - this.gc.length
-    if (active < this.maxCache) return
+    if (this.gc.length + this.idle.length < this.maxCache) return
 
     // just pick anyone from the gc set that is not queued for flushing
     // we could maintain a separate set for ONLY non queued but seems like overkill
@@ -150,6 +151,7 @@ module.exports = class FixedBlockStore extends ReadyResource {
     const fd = this.fd
 
     let bytesMissing = blocks.length * 4096
+
     fs.writev(fd, blocks, pos, onwrite)
 
     function onwrite (err, bytesWritten, blocks) {
@@ -189,7 +191,7 @@ module.exports = class FixedBlockStore extends ReadyResource {
       const q = this.queued[i]
       q.queued = false
 
-      if (q.index === index + batch.length) {
+      if (batch.length < MAX_BATCH_SIZE && q.index === index + batch.length) {
         batch.push(q.buffer)
         continue
       }
@@ -207,6 +209,17 @@ module.exports = class FixedBlockStore extends ReadyResource {
     }
 
     this.queued = []
+  }
+
+  async info () {
+    if (this.opened === false) await this.ready()
+
+    return new Promise((resolve, reject) => {
+      fs.fstat(this.fd, function (err, st) {
+        if (err) return reject(err)
+        resolve({ blocks: Math.floor(st.size / 4096) })
+      })
+    })
   }
 
   async flush () {
@@ -238,16 +251,22 @@ module.exports = class FixedBlockStore extends ReadyResource {
     const newBlk = new FixedBlock(this, index)
     const batch = [newBlk]
 
+    this._maybeGC()
+
     for (let i = index - 1; i >= start; i--) {
       if (this.blocks.has(i)) break
-      batch.push(new FixedBlock(this, i))
+      const blk = new FixedBlock(this, i)
+      blk.close()
+      batch.push(blk)
     }
 
     batch.reverse()
 
     for (let i = index + 1; i < end; i++) {
       if (this.blocks.has(i)) break
-      batch.push(new FixedBlock(this, i))
+      const blk = new FixedBlock(this, i)
+      blk.close()
+      batch.push(blk)
     }
 
     const loading = this._read(batch[0].index, batch.length)
